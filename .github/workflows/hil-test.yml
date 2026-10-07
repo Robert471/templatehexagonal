@@ -1,24 +1,22 @@
-name: HIL Runner Test
+name: HIL
 
 on:
   workflow_dispatch:
 
 jobs:
-  runner-test:
-    name: Test STM32 HIL Runner
+  hil-test:
+    name: STM32F401RE HIL Test
+
     runs-on:
       - self-hosted
       - Windows
       - X64
-      
+
+    timeout-minutes: 15
+
     steps:
-      - name: Runner information
-        shell: powershell
-        run: |
-          Write-Host "Runner: $env:RUNNER_NAME"
-          Write-Host "OS: $env:RUNNER_OS"
-          Write-Host "Architecture: $env:RUNNER_ARCH"
-          Write-Host "Computer: $env:COMPUTERNAME"
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Verify Python
         shell: powershell
@@ -30,12 +28,22 @@ jobs:
         run: |
           cmake --version
 
+      - name: Verify Ninja
+        shell: powershell
+        run: |
+          ninja --version
+
+      - name: Verify STM32 Programmer CLI
+        shell: powershell
+        run: |
+          STM32_Programmer_CLI.exe --version
+
       - name: Verify COM8
         shell: powershell
         run: |
           $ports = [System.IO.Ports.SerialPort]::GetPortNames()
 
-          Write-Host "Available COM ports:"
+          Write-Host "Available serial ports:"
           $ports
 
           if ($ports -notcontains "COM8") {
@@ -43,9 +51,7 @@ jobs:
               exit 1
           }
 
-      - name: Runner test passed
+      - name: Run HIL
         shell: powershell
         run: |
-          Write-Host "========================================"
-          Write-Host "       HIL RUNNER TEST PASSED"
-          Write-Host "========================================"
+          py tests\hil\run_hil.py
