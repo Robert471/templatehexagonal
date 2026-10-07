@@ -18,11 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Python 
+      - name: Verificar Python
         shell: powershell
         run: |
-          python --version
-          where.exe python
+          & "C:\Users\rober\AppData\Local\Programs\Python\Python310\python.exe" --version
 
       - name: Verify CMake
         shell: powershell
@@ -55,4 +54,4 @@ jobs:
       - name: Run HIL
         shell: powershell
         run: |
-          python tests\hil\run_hil.py
+          & "C:\Users\rober\AppData\Local\Programs\Python\Python310\python.exe" .\tests\hil\run_hil.py
