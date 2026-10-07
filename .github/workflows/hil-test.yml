@@ -18,10 +18,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Verify Python 3
+      - name: Verify Python 
         shell: powershell
         run: |
-          py --version
+          python --version
           where.exe python
 
       - name: Verify CMake
