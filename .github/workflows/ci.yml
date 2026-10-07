@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+  pull_request:
+    branches:
+      - main
+      - develop
+
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Build and Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ARM GNU Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc-arm-none-eabi \
+            binutils-arm-none-eabi \
+            libnewlib-arm-none-eabi
+
+      - name: Install CMake and Ninja
+        run: |
+          sudo apt-get install -y cmake ninja-build
+
+      - name: Verify tools
+        run: |
+          arm-none-eabi-gcc --version
+          cmake --version
+          ninja --version
+
+      - name: Configure firmware
+        run: |
+          cmake \
+            -S . \
+            -B build/CI \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build firmware
+        run: |
+          cmake --build build/CI --parallel
+
+      - name: Configure tests
+        run: |
+          cmake \
+            -S tests \
+            -B build-tests \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug
+
+      - name: Build tests
+        run: |
+          cmake --build build-tests --parallel
+
+      - name: Run tests
+        run: |
+          ctest \
+            --test-dir build-tests \
+            --output-on-failure
+
+      - name: Upload firmware artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/CI/**/*.elf
+            build
+            /CI/**/*.hex
+            build/CI/**/*.bin
+          if-no-files-found: warn
