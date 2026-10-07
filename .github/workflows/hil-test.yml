@@ -54,4 +54,4 @@ jobs:
       - name: Run HIL
         shell: powershell
         run: |
-          py tests\hil\run_hil.py
+          python tests\hil\run_hil.py
