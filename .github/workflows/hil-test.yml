@@ -10,8 +10,7 @@ jobs:
       - self-hosted
       - Windows
       - X64
-      - hil-stm32
-
+      
     steps:
       - name: Runner information
         shell: powershell
