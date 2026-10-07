@@ -1,0 +1,52 @@
+name: HIL Runner Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  runner-test:
+    name: Test STM32 HIL Runner
+    runs-on:
+      - self-hosted
+      - Windows
+      - X64
+      - hil-stm32
+
+    steps:
+      - name: Runner information
+        shell: powershell
+        run: |
+          Write-Host "Runner: $env:RUNNER_NAME"
+          Write-Host "OS: $env:RUNNER_OS"
+          Write-Host "Architecture: $env:RUNNER_ARCH"
+          Write-Host "Computer: $env:COMPUTERNAME"
+
+      - name: Verify Python
+        shell: powershell
+        run: |
+          py --version
+
+      - name: Verify CMake
+        shell: powershell
+        run: |
+          cmake --version
+
+      - name: Verify COM8
+        shell: powershell
+        run: |
+          $ports = [System.IO.Ports.SerialPort]::GetPortNames()
+
+          Write-Host "Available COM ports:"
+          $ports
+
+          if ($ports -notcontains "COM8") {
+              Write-Error "COM8 was not detected."
+              exit 1
+          }
+
+      - name: Runner test passed
+        shell: powershell
+        run: |
+          Write-Host "========================================"
+          Write-Host "       HIL RUNNER TEST PASSED"
+          Write-Host "========================================"
