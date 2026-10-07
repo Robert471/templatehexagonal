@@ -18,27 +18,64 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-          architecture: 'x64'
+      - name: Descargar Python portable
+        shell: powershell
+        run: |
+          $pythonVersion = "3.10.11"
+          $pythonUrl = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+          $pythonZip = "$env:RUNNER_TEMP\python.zip"
+          $pythonDir = "$env:RUNNER_TEMP\python"
+
+          Write-Host "Descargando Python $pythonVersion..."
+
+          Invoke-WebRequest `
+            -Uri $pythonUrl `
+            -OutFile $pythonZip
+
+          if (Test-Path $pythonDir) {
+              Remove-Item $pythonDir -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Path $pythonDir | Out-Null
+
+          Expand-Archive `
+            -Path $pythonZip `
+            -DestinationPath $pythonDir `
+            -Force
+
+          Write-Host "Python portable instalado en:"
+          Write-Host $pythonDir
+
+      - name: Preparar pip para Python portable
+        shell: powershell
+        run: |
+          $pythonDir = "$env:RUNNER_TEMP\python"
+          $pythonExe = "$pythonDir\python.exe"
+
+          Write-Host "Python portable:"
+          & $pythonExe --version
+
+          Invoke-WebRequest `
+            -Uri "https://bootstrap.pypa.io/get-pip.py" `
+            -OutFile "$env:RUNNER_TEMP\get-pip.py"
+
+          & $pythonExe "$env:RUNNER_TEMP\get-pip.py"
 
       - name: Instalar PySerial
         shell: powershell
         run: |
-          python -m pip install pyserial
+          $pythonExe = "$env:RUNNER_TEMP\python\python.exe"
+
+          & $pythonExe -m pip install --no-warn-script-location pyserial
 
       - name: Verificar Python
         shell: powershell
         run: |
-          python --version
-          where.exe python
+          $pythonExe = "$env:RUNNER_TEMP\python\python.exe"
 
-      - name: Verificar PySerial
-        shell: powershell
-        run: |
-          python -c "import serial; print(serial.__version__)"
+          & $pythonExe --version
+
+          & $pythonExe -c "import serial; print('PySerial:', serial.__version__)"
 
       - name: Verify CMake
         shell: powershell
@@ -71,4 +108,6 @@ jobs:
       - name: Run HIL
         shell: powershell
         run: |
-          python tests\hil\run_hil.py
+          $pythonExe = "$env:RUNNER_TEMP\python\python.exe"
+
+          & $pythonExe tests\hil\run_hil.py
