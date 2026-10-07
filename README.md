@@ -1,78 +1,588 @@
-# Proyecto STM32 - Lectura de DHT11
+# Sensor de Temperatura y Humedad — STM32F401RE
 
-Este proyecto implementa la lectura de un sensor **DHT11** (temperatura y humedad) utilizando un microcontrolador **STM32F411RT6**.  
-Los valores obtenidos se visualizan en una **pantalla LCD** y, adicionalmente, se transmiten mediante **UART (RS232)**.  
-Como indicador de ejecución, el sistema activa un parpadeo en el **LED integrado** de la placa.
+Proyecto embebido en **C** para la adquisición de temperatura y humedad mediante un sensor **DHT11**, ejecutado sobre un **STM32F401RE**, utilizando **Arquitectura Hexagonal (Ports & Adapters)**, principios **SOLID** y una organización orientada a **MISRA-C**.
 
-
-## Estructura del proyecto
-
-- [main.c](./main.c) → Código principal de inicialización y bucle infinito.
-- [dht11.c](./lib/src/dht11.c) / [dht11.h](./lib/inc/dht11.h) → Librería para la comunicación con el sensor DHT11.
-- [rs232.c](./lib/src/rs232.c) / [rs232.h](./lib/inc/rs232.h) → Funciones para transmisión serial.
-- [output.c](./lib/src/output.c) / [output.h](./lib/inc/output.h) → Funciones auxiliares de salida.
-- [usart.c](./lib/src/usart.c) / [gpio.c](./lib/src/gpio.c) → Inicialización de periféricos generada por CubeMX.
-- [lcd.c](./lib/src/lcd.c) / [lcd.h](./lib/inc/lcd.h) → Control e inicialización de la pantalla LCD.
-
-## Configuración del hardware
-
-- **Microcontrolador:** STM32F411RT6.
-- **Sensor:** DHT11 conectado aL PIN C3 configurado como entrada/salida.
-- **UART:** USART2 a 9600 baudios.
-- **LED:** Pin PA5.
-- **LCD:** LCD Shield.
-
-## Flujo del programa
-
-1. Inicialización de periféricos (`HAL_Init`, `SystemClock_Config`, `MX_GPIO_Init`, `MX_USART2_UART_Init`).
-2. Configuración del **Timer 3 (TIM3)** para medir tiempos del protocolo DHT11.
-3. En el bucle principal:
-   - Se ejecuta `dht11_read()`.
-   - Si la lectura es correcta:
-     - Se muestra en la LCD humedad y temperatura.
-     - Se envía por UART la humedad y temperatura.
-   - Se envía un mensaje de estado `"blinking"`.
-   - Se alterna el LED en PA5 cada 1.5 segundos.
-
-## Ejemplo de salida por UART
-
-humd: 65
-temp: 27
-blinking
-
-## Dependencias
-
-- **HAL STM32CubeMX** → Inicialización de periféricos.
-- Librerías personalizadas:
-  - [dht11.h](./lib/inc/dht11.h) / [dht11.c](./lib/src/dht11.c)
-  - [rs232.h](./lib/inc/rs232.h) / [rs232.c](./lib/src/rs232.c)
-  - [output.h](./lib/inc/output.h) / [output.c](./lib/src/output.c)
-  - [lcd.h](./lib/inc/lcd.h) / [lcd.c](./lib/src/lcd.c)
-
-## Compilación y carga
-
-1. Abrir el proyecto en **STM32CubeIDE**.
-2. Compilar (`Project → Build Project`).
-3. Conectar la placa STM32 por USB.
-4. Cargar el binario (`Run → Debug` o `Run → Run`).
-
-## Compilar y ejecutar Test
-1. cmake -S tests -B build-tests
-2. cmake --build build-tests
-3. ctest --test-dir build-tests -C Debug --output-on-failure
-
-## Ejecutar HIL
-1. py tests\hil\run_hil.py
-
-## Notas importantes
-
-- El DHT11 requiere un **delay preciso** para la lectura de datos, por eso se usa **TIM3** como contador.
-- La función `dht11_read()` devuelve `0` si la lectura fue exitosa.
-- El LED parpadea como indicador de que el programa está en ejecución.
+El proyecto incluye pruebas **unitarias, integración, SIL (Software-in-the-Loop) y HIL (Hardware-in-the-Loop)**.
 
 ---
 
-Autor: ROMOBOA 
-Fecha: Septiembre 2026
+## 📌 Descripción
 
+El sistema realiza las siguientes funciones:
 
+1. Inicializa los periféricos del STM32.
+2. Lee temperatura y humedad desde el DHT11.
+3. Clasifica la temperatura según las reglas del dominio.
+4. Formatea el resultado.
+5. Envía la información mediante **USART2**.
+6. Permite validar el comportamiento mediante pruebas SIL.
+7. Permite validar el comportamiento sobre hardware real mediante HIL.
+
+El resultado puede observarse mediante el puerto serie **COM8**.
+
+Ejemplo:
+
+```text
+Temperature: 28 C
+```
+
+---
+
+## 🎯 Hardware
+
+| Componente | Configuración |
+|---|---|
+| MCU | STM32F401RE |
+| Board | STM32 Nucleo |
+| Sensor | DHT11 |
+| DHT11 Data | PC3 |
+| Timer | TIM3 |
+| UART | USART2 |
+| Puerto PC | COM8 |
+| Baudrate | 115200 |
+| Data bits | 8 |
+| Paridad | None |
+| Stop bits | 1 |
+
+La configuración concreta del hardware se realiza en el **Composition Root**, manteniendo desacopladas las capas de dominio y aplicación.
+
+---
+
+# 🏗️ Arquitectura
+
+El proyecto utiliza **Arquitectura Hexagonal (Ports & Adapters)**.
+
+```text
+                    ┌─────────────────────┐
+                    │       DOMAIN        │
+                    │                     │
+                    │ TemperatureData     │
+                    │ TemperatureLevel    │
+                    │ Business Rules      │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    APPLICATION      │
+                    │                     │
+                    │ Sensor Application  │
+                    │ Comm Application    │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │       PORTS         │
+                    │                     │
+                    │ Sensor Port         │
+                    │ Comm Port           │
+                    │ DHT11 Port          │
+                    │ Serial Port         │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │      ADAPTERS       │
+                    │                     │
+                    │ DHT11 Adapter       │
+                    │ Serial Adapter      │
+                    │ LCD Adapter         │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │      DRIVERS        │
+                    │                     │
+                    │ GPIO Driver         │
+                    │ Timer Driver        │
+                    │ USART Driver        │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │    STM32 HAL        │
+                    └─────────────────────┘
+```
+
+Regla principal de dependencia:
+
+```text
+Domain
+   ↓
+Application
+   ↓
+Ports
+   ↓
+Adapters
+   ↓
+Drivers
+   ↓
+STM32 HAL
+```
+
+El **Composition Root** es el encargado de ensamblar las implementaciones concretas.
+
+---
+
+# 📂 Estructura del proyecto
+
+```text
+templatehexagonal/
+│
+├── Core/
+├── Drivers/
+│
+├── ports_and_adapters/
+│   ├── domain/
+│   ├── application/
+│   ├── ports/
+│   ├── adapters/
+│   ├── drivers/
+│   └── composition/
+│
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── sil/
+│   └── hil/
+│
+├── cmake/
+├── doc/
+│
+├── CMakeLists.txt
+├── CMakePresets.json
+├── STM32F401RECmake.ioc
+├── STM32F401xx_FLASH.ld
+├── startup_stm32f401xe.s
+└── README.md
+```
+
+---
+
+# 🔗 Acceso rápido a los archivos
+
+## Firmware STM32
+
+- [Core](./Core)
+- [STM32 HAL / Drivers](./Drivers)
+- [CMake principal](./CMakeLists.txt)
+- [CMake Presets](./CMakePresets.json)
+- [STM32CubeMX `.ioc`](./STM32F401RECmake.ioc)
+- [Linker Script](./STM32F401xx_FLASH.ld)
+- [Startup STM32F401](./startup_stm32f401xe.s)
+
+---
+
+## Domain
+
+La capa de dominio contiene las reglas de negocio y los modelos independientes del hardware.
+
+- [Domain](./ports_and_adapters/domain)
+- [Temperature Domain Header](./ports_and_adapters/domain/inc/temperature_domain.h)
+- [Temperature Domain Implementation](./ports_and_adapters/domain/src/temperature_domain.c)
+
+---
+
+# Application
+
+La capa Application coordina los casos de uso sin conocer directamente STM32 HAL.
+
+- [Application](./ports_and_adapters/application)
+- [Sensor Application Header](./ports_and_adapters/application/inc/sensor_application.h)
+- [Sensor Application](./ports_and_adapters/application/src/sensor_application.c)
+- [Communication Application Header](./ports_and_adapters/application/inc/comm_application.h)
+- [Communication Application](./ports_and_adapters/application/src/comm_application.c)
+
+---
+
+# Ports
+
+Los Ports definen los contratos utilizados entre la aplicación y la infraestructura.
+
+## Application Ports
+
+- [Sensor Port](./ports_and_adapters/ports/application/sensor/sensor_port.h)
+- [Communication Port](./ports_and_adapters/ports/application/comm/comm_port.h)
+
+## Hardware Ports
+
+- [DHT11 Port](./ports_and_adapters/ports/hardware/dht11/dht11_port.h)
+- [Serial Port](./ports_and_adapters/ports/hardware/serial/serial_port.h)
+
+Los Ports permiten sustituir las implementaciones concretas por mocks y modelos SIL durante las pruebas.
+
+---
+
+# Adapters
+
+Los adapters implementan la lógica de adaptación entre los casos de uso y los Ports de infraestructura.
+
+## DHT11 Adapter
+
+- [DHT11 Adapter Header](./ports_and_adapters/adapters/dht11/inc/dht11_adapter.h)
+- [DHT11 Adapter](./ports_and_adapters/adapters/dht11/src/dht11_adapter.c)
+
+Implementa el protocolo de comunicación con el DHT11 mediante el contrato definido por `Dht11_Port`.
+
+## Serial Adapter
+
+- [Serial Adapter Header](./ports_and_adapters/adapters/serial/inc/serial_adapter.h)
+- [Serial Adapter](./ports_and_adapters/adapters/serial/src/serial_adapter.c)
+
+Se encarga del formateo de los datos antes de enviarlos por el Port serial.
+
+## LCD Adapter
+
+- [LCD Adapter Header](./ports_and_adapters/adapters/lcd/inc/lcd_adapter.h)
+- [LCD Adapter](./ports_and_adapters/adapters/lcd/src/lcd_adapter.c)
+
+---
+
+# Drivers
+
+Los drivers contienen la interacción concreta con STM32 HAL.
+
+- [GPIO Driver](./ports_and_adapters/drivers/stm32/gpio)
+- [Timer Driver](./ports_and_adapters/drivers/stm32/timer)
+- [USART Driver](./ports_and_adapters/drivers/stm32/usart)
+
+Los drivers encapsulan las llamadas específicas a STM32 HAL para evitar que las capas superiores dependan directamente de ellas.
+
+---
+
+# Composition Root
+
+La composición de dependencias se realiza en:
+
+- [Sensor Composition](./ports_and_adapters/composition/sensor)
+- [Communication Composition](./ports_and_adapters/composition/comm)
+
+El Composition Root es el lugar donde se conocen las implementaciones concretas de hardware.
+
+---
+
+# 🧪 Testing
+
+El proyecto dispone de diferentes niveles de prueba.
+
+```text
+Unit Tests
+     ↓
+Integration Tests
+     ↓
+SIL
+     ↓
+HIL
+     ↓
+Hardware real
+```
+
+---
+
+## Unit Tests
+
+Ubicación:
+
+[tests/unit](./tests/unit)
+
+Se prueban individualmente:
+
+- Domain
+- Application
+- Ports
+- Adapters
+
+Ejemplos:
+
+- [Temperature Domain Test](./tests/unit/domain/temperature/test_temperature_domain.c)
+- [Sensor Application Test](./tests/unit/application/sensor/test_sensor_application.c)
+- [Communication Application Test](./tests/unit/application/comm/test_comm_application.c)
+- [DHT11 Adapter Test](./tests/unit/adapters/dht11/test_dht11_adapter.c)
+- [Serial Adapter Test](./tests/unit/adapters/serial/test_serial_adapter.c)
+
+---
+
+## Integration Test
+
+El flujo Sensor → Serial se valida mediante:
+
+[Sensor to Serial Integration Test](./tests/integration/sensor_to_serial)
+
+Este test verifica la integración entre:
+
+```text
+DHT11
+ ↓
+Sensor Application
+ ↓
+Communication Application
+ ↓
+Serial Adapter
+```
+
+---
+
+# 🖥️ SIL — Software-in-the-Loop
+
+Los tests SIL se encuentran en:
+
+[tests/sil](./tests/sil)
+
+El sistema utiliza modelos de software para simular:
+
+- DHT11
+- Serial
+
+Archivos principales:
+
+- [DHT11 SIL Model](./tests/sil/sensor_system/dht11_sil_model.c)
+- [Serial SIL Model](./tests/sil/sensor_system/serial_sil_model.c)
+- [Sensor System SIL Test](./tests/sil/sensor_system/test_sensor_system_sil.c)
+
+---
+
+# 🔌 HIL — Hardware-in-the-Loop
+
+La prueba HIL utiliza hardware real.
+
+Script:
+
+[run_hil.py](./tests/hil/run_hil.py)
+
+Ejecutar desde la raíz del proyecto:
+
+```powershell
+py tests\hil\run_hil.py
+```
+
+El script realiza el flujo de validación del firmware:
+
+```text
+CMake
+  ↓
+Build firmware
+  ↓
+HEX
+  ↓
+Programación STM32
+  ↓
+USART2 / COM8
+  ↓
+DHT11
+  ↓
+Validación de muestras
+```
+
+Resultado esperado:
+
+```text
+========================================
+          HIL TEST PASSED
+========================================
+```
+
+Una ejecución validada sobre hardware real produjo:
+
+```text
+Promedio: 28.00 C
+
+HIL TEST PASSED
+```
+
+---
+
+# 🔨 Compilación
+
+## Firmware
+
+El proyecto utiliza CMake y el toolchain ARM GCC:
+
+[ARM GCC Toolchain](./cmake/gcc-arm-none-eabi.cmake)
+
+Configuración típica:
+
+```powershell
+cmake -S . -B build\Debug -G Ninja `
+  -DCMAKE_TOOLCHAIN_FILE=cmake\gcc-arm-none-eabi.cmake `
+  -DCMAKE_BUILD_TYPE=Debug
+```
+
+Compilación:
+
+```powershell
+cmake --build build\Debug
+```
+
+---
+
+# 🧪 Compilar y ejecutar tests
+
+Los tests tienen su propio [CMakeLists.txt](./tests/CMakeLists.txt).
+
+Desde la raíz:
+
+```powershell
+cmake -S tests -B build-tests
+```
+
+Compilar:
+
+```powershell
+cmake --build build-tests --config Debug
+```
+
+Ejecutar:
+
+```powershell
+ctest --test-dir build-tests -C Debug --output-on-failure
+```
+
+Resultado esperado:
+
+```text
+100% tests passed
+```
+
+---
+
+# 📐 Principios de diseño
+
+## Hexagonal Architecture
+
+La arquitectura separa:
+
+- Domain
+- Application
+- Ports
+- Adapters
+- Drivers
+- Composition Root
+
+El hardware concreto queda aislado en la infraestructura.
+
+## SOLID
+
+### Single Responsibility Principle
+
+Cada componente tiene una responsabilidad específica:
+
+```text
+Domain      → reglas de negocio
+Application → casos de uso
+Port        → contrato
+Adapter     → adaptación
+Driver      → hardware
+Composition → ensamblaje
+```
+
+### Dependency Inversion Principle
+
+Application depende de Ports y no de implementaciones concretas.
+
+Las implementaciones se inyectan desde el Composition Root.
+
+### Open/Closed Principle
+
+Los Ports permiten reemplazar implementaciones sin modificar las capas superiores.
+
+Esto se utiliza directamente en los tests SIL e integración.
+
+---
+
+# 🛡️ MISRA-C
+
+El código de producción está organizado siguiendo prácticas orientadas a **MISRA-C**, incluyendo:
+
+- tipos enteros explícitos (`uint8_t`, `uint16_t`, `uint32_t`)
+- uso controlado de conversiones
+- uso de `const`
+- validación de parámetros
+- inicialización explícita
+- reducción de dependencias implícitas
+- separación de responsabilidades
+- encapsulamiento de hardware
+- ausencia de dependencia de `<stdio.h>` en el Serial Adapter
+
+Las APIs externas de STM32 HAL constituyen la frontera de hardware del sistema.
+
+> La conformidad formal con MISRA-C requiere ejecutar una herramienta de análisis estático certificada y documentar las desviaciones aplicables.
+
+---
+
+# 📊 Estado de validación
+
+| Validación | Estado |
+|---|---|
+| Unit Tests | ✅ PASS |
+| Integration Tests | ✅ PASS |
+| SIL | ✅ PASS |
+| HIL | ✅ PASS |
+| STM32F401RE | ✅ Validado |
+| DHT11 | ✅ Validado |
+| USART2 | ✅ Validado |
+| COM8 | ✅ Validado |
+| Arquitectura Hexagonal | ✅ |
+| SOLID | ✅ |
+| MISRA-oriented | ✅ |
+
+Última validación HIL:
+
+```text
+Promedio: 28.00 C
+HIL TEST PASSED
+```
+
+---
+
+# 📚 Documentación de hardware
+
+- [STM32F401RE Nucleo Pinout](./doc/STM32F401RENUCLEO_pinout.png)
+- [STM32 Nucleo-64 User Manual](./doc/um1724-stm32-nucleo64-boards-mb1136-stmicroelectronics.pdf)
+- [STM32CubeMX Configuration](./STM32F401RECmake.ioc)
+
+---
+
+# 🚀 CI/CD
+
+El proyecto queda preparado para incorporar automatización CI/CD mediante GitHub Actions.
+
+Estrategia prevista para CI:
+
+```text
+Git Push / Pull Request
+        ↓
+      Build
+        ↓
+   Unit / Integration
+        ↓
+       SIL
+        ↓
+ Static Analysis
+        ↓
+       PASS
+```
+
+Estrategia prevista para HIL:
+
+```text
+Scheduled Workflow
+        ↓
+Self-hosted Runner
+        ↓
+Build Firmware
+        ↓
+Program STM32
+        ↓
+Execute run_hil.py
+        ↓
+DHT11 + USART2
+        ↓
+HIL PASS / FAIL
+```
+
+---
+
+# 👤 Autor
+
+**Robert Ramirez**
+
+Proyecto desarrollado para STM32F401RE utilizando C, STM32 HAL, CMake, Arquitectura Hexagonal, SOLID y pruebas SIL/HIL.
