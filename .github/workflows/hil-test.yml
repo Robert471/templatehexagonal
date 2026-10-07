@@ -18,10 +18,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: 'x64'
+
       - name: Verificar Python
         shell: powershell
         run: |
-          & "C:\Users\rober\AppData\Local\Programs\Python\Python310\python.exe" --version
+          python --version
+          where.exe python
 
       - name: Verify CMake
         shell: powershell
@@ -54,4 +61,4 @@ jobs:
       - name: Run HIL
         shell: powershell
         run: |
-          & "C:\Users\rober\AppData\Local\Programs\Python\Python310\python.exe" .\tests\hil\run_hil.py
+          python tests\hil\run_hil.py
