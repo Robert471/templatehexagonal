@@ -21,7 +21,6 @@ jobs:
       - name: Verify Python 
         shell: powershell
         run: |
-          $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine")
           python --version
           where.exe python
 
@@ -56,5 +55,4 @@ jobs:
       - name: Run HIL
         shell: powershell
         run: |
-          $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine")
           python tests\hil\run_hil.py
